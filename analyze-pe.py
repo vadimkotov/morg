@@ -27,22 +27,20 @@ def ext_thread():
             
         IN_QUEUE.task_done()
         
-    logging.debug("EXT_THREAD DONE")
-
     
-def out_thread(db_str):
-
+def out_thread(db_str, total):
+    bulk_size = 20
     session = database.connect(db_str)
-    
+    cnt = 0
     while True:
         entry = OUT_QUEUE.get()
-        # session.add(entry)
-        # session.commit()
+        session.add(entry)
+        session.commit()
+        cnt += 1
+        utils.progress(cnt, total)
+        
         OUT_QUEUE.task_done()
         
-    logging.debug("OUT_THREAD DONE")
-    session.close()
-
     
 class PEAnalyzer:
     def __init__(self, root, session, extractor):
@@ -52,6 +50,7 @@ class PEAnalyzer:
 
 
     def run(self):
+        cnt = 0
         for entry in self.session.query(database.PE).filter_by(dotnet=0).all():
             sha256 = entry.file.sha256
             dir_ = utils.hash_to_dir(sha256, self.root)
@@ -71,22 +70,24 @@ class PEAnalyzer:
             # TODO: move to utils or something, that whole snipped is used in pe-stats.py
             upx_rec = self.session.query(database.UPX).filter_by(file_id=entry.file.id).first()
             if upx_rec:
-                logging.debug("upx: UPXed binary")
+                
                 decompressed = path + extractors.EXT_UNUPXED
                 if upx_rec.result and os.path.exists(decompressed):
                     logging.debug("upx: using decompressed binary: {}".format(decompressed))
                     path = decompressed
             
-            logging.debug("Adding to queue: {}".format(path))
+            # logging.debug("Adding to queue: {}".format(path))
             func = extractors.ALL.get(self.extractor)
             
             if func:
                 # func(self.session, path, entry.file)
                 IN_QUEUE.put((func, path, entry.file))
 
-            break
-
-
+            # break
+            cnt += 1
+            # if cnt > 10:
+            #     break
+        return cnt
 
             
 def main():
@@ -100,13 +101,13 @@ def main():
     session = database.connect(args.database)
 
     analyzer = PEAnalyzer(args.root, session, args.extractor)
-    analyzer.run()
+    total = analyzer.run()
     session.close()
     
     for i in range(10):
         utils.start_daemon(ext_thread)
 
-    utils.start_daemon(out_thread, dict(db_str=args.database))
+    utils.start_daemon(out_thread, dict(db_str=args.database, total=total))
 
     IN_QUEUE.join()
     OUT_QUEUE.join()

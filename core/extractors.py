@@ -12,6 +12,7 @@ import zlib
 import utils
 import shutil
 import re
+import simplejson
 
 
 EXT_UNUPXED = ".unupxed"
@@ -172,8 +173,74 @@ def e_ida_cfg(path, file_):
 
 def e_pe_features_1(path, file_):
 
-    logging.debug("e_pe_features_1")
+
+    pe = pefile.PE(path)
+    sections = []
+    for section in pe.sections:
+        sections.append({
+            "name": utils.b64enc(utils.strip_nulls(section.Name)),
+            "size": section.SizeOfRawData,
+            "characteristics": section.Characteristics
+        })
+
+    imports = []
+    if hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+
+        for entry in pe.DIRECTORY_ENTRY_IMPORT:
+            imports.append({
+                "dll": entry.dll,
+                "names": [imp.name if imp.name else imp.ordinal for imp in entry.imports]
+            })
+
+    exports = []
+    if hasattr(pe, 'DIRECTORY_ENTRY_EXPORT'):
+        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
+            #print hex(pe.OPTIONAL_HEADER.ImageBase + exp.address), exp.name, exp.ordinal
+            exports.append(exp.name)
+
+
+    cb_cnt = 0
+    if hasattr(pe, 'DIRECTORY_ENTRY_TLS'):
+        cb_rva = pe.DIRECTORY_ENTRY_TLS.struct.AddressOfCallBacks - pe.OPTIONAL_HEADER.ImageBase
+        while True:
+            try:
+                cb_addr = pe.get_dword_from_data(pe.get_data(cb_rva + 4 * cb_cnt, 4), 0)
+            except pefile.PEFormatError as e:
+                logging.error(str(e))
+                break
+            if cb_addr == 0:
+                break
+            cb_cnt += 1
+
+
+    named_resources = []
     
+    if hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):
+
+        for rsrc in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+
+            for r in rsrc.directory.entries:
+                if r.name:
+                    named_resources.append(r.name.__str__())
+
+        # logging.debug("rsrc: {} - {}".format(n_rsrc, resources))
+        
+    data = {
+        "file_header.characteristics": pe.FILE_HEADER.Characteristics,
+        "optional_header.subsystem": pe.OPTIONAL_HEADER.Subsystem,
+        
+        "sections": sections,
+
+        "imports": imports,
+        "exports": exports,
+        "n_tls_callbacks": cb_cnt,
+        "named_resources": named_resources
+    }
+
+    # print simplejson.dumps(data, indent=2)
+    data = zlib.compress(simplejson.dumps(data))
+
+    return database.PE_Features_1(file=file_, data=data)
 
 
 # DON't FORGET TO ADD AN ENTRY TO THE TABLES DICT BELOW!

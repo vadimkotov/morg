@@ -3,6 +3,7 @@ import hashlib
 import os
 import subprocess
 from threading import Thread
+import base64
 
 def get_sha256(data):
         return hashlib.sha256(data).hexdigest()
@@ -40,3 +41,14 @@ def start_daemon(target, kwargs=dict()):
 def progress(cnt, total):
     sys.stdout.write( "{} / {} ({:.2f}%)\r".format(cnt, total, float(cnt)/total*100) )
     sys.stdout.flush()
+
+
+def strip_nulls(str_):
+    while str_[-1] == "\00":
+        str_ = "".join(list(str_)[:-1])
+        if not str_:
+            return "<empty_string>"
+    return str_
+
+def b64enc(str_):
+    return base64.b64encode(str_)
