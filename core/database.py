@@ -55,6 +55,24 @@ class PE_Features_1(Base):
     file = relationship(File)
 
 
+class SSDEEP(Base):
+    __tablename__ = "ssdeep"
+    id = Column(Integer, primary_key=True)
+    file_id = Column(Integer, ForeignKey("file.id"))
+    ep_section = Column(Text)
+    whole_file = Column(Text)
+        
+    file = relationship(File)
+
+class VirusTotal(Base):
+    __tablename__ = "virustotal"
+    id = Column(Integer, primary_key=True)
+    file_id = Column(Integer, ForeignKey("file.id"))
+    data = Column(Binary)
+
+    file = relationship(File)
+
+    
     
 def get_engine(conn_str):
     return create_engine("{}:///{}".format(DB_PROTO, conn_str))
@@ -76,8 +94,14 @@ def record_exists(session, Table, file_):
     # return session.query(exists().where(Table.file=file_)).scalar()
     return session.query(Table).filter_by(file_id=file_.id).first() != None
 
+
+def query_one(session, Table, file_):
+    return session.query(Table).filter_by(file_id=file_.id).first()
+
 def file_by_sha256(session, sha256):
     return session.query(File).filter_by(sha256=sha256).first()
+
+
 
 def add_file(session, sha256):
     file_ = File(sha256=sha256)

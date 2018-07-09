@@ -13,6 +13,7 @@ import utils
 import shutil
 import re
 import simplejson
+import ssdeep
 
 
 EXT_UNUPXED = ".unupxed"
@@ -243,13 +244,47 @@ def e_pe_features_1(path, file_):
     return database.PE_Features_1(file=file_, data=data)
 
 
+def e_ssdeep(path, file_):
+    pe = pefile.PE(path)
+    # print type(pe.__data__[::])
+    whole_file = ssdeep.hash(pe.__data__[::])
+    # print whole_file
+    base = pe.OPTIONAL_HEADER.ImageBase
+    ep = pe.OPTIONAL_HEADER.AddressOfEntryPoint
+    # print hex(ep)
+
+    ep_section = None
+    
+    for section in pe.sections:
+        size = section.Misc_VirtualSize
+        if size == 0:
+            size = section.SizeOfRawData
+        
+        if ep >= section.VirtualAddress and ep < section.VirtualAddress + size:
+            # print section.Name
+            # sect_data = pe.__data__[section.PointerToRawData:section.SizeOfRawData]
+            # print sect_data[:10].encode("hex")
+            ep_section = ssdeep.hash( pe.get_data(section.VirtualAddress))
+            break
+
+    if not ep_section:
+        logging.error("Couldn't fine EP section in {}".format(path))
+    else:
+        return database.SSDEEP(file=file_, whole_file=whole_file, ep_section=ep_section)
+
+
+def e_virustotal(path, file_):
+    pass
+
 # DON't FORGET TO ADD AN ENTRY TO THE TABLES DICT BELOW!
 ALL = {
     "magic": e_magic,
     "pe": e_pe,
     "upx": e_upx,
     "ida_cfg": e_ida_cfg,
-    "pe_features_1": e_pe_features_1
+    "pe_features_1": e_pe_features_1,
+    "ssdeep": e_ssdeep,
+    "virustotal": e_virustotal
 }
 
 
@@ -258,6 +293,8 @@ TABLES = {
     "pe": database.PE,
     "upx": database.UPX,
     "ida_cfg": database.IDA_CFG,
-    "pe_features_1": database.PE_Features_1
+    "pe_features_1": database.PE_Features_1,
+    "ssdeep": database.SSDEEP,
+    "virustotal": database.VirusTotal
 
 }

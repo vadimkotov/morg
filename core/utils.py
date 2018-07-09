@@ -4,9 +4,11 @@ import os
 import subprocess
 from threading import Thread
 import base64
+import simplejson
+import zlib
 
 def get_sha256(data):
-        return hashlib.sha256(data).hexdigest()
+    return hashlib.sha256(data).hexdigest()
 
 def write_file(path, data):
     with open(path, "wb") as fd:
@@ -52,3 +54,7 @@ def strip_nulls(str_):
 
 def b64enc(str_):
     return base64.b64encode(str_)
+
+def unpack(data):
+    return simplejson.loads(zlib.decompress(data))
+        

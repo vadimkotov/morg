@@ -35,8 +35,11 @@ def out_thread(db_str, total):
     while True:
         entry = OUT_QUEUE.get()
         session.add(entry)
-        session.commit()
+        # session.commit()
         cnt += 1
+        if cnt > 0 and cnt % 20 == 0:
+            session.commit()
+            
         utils.progress(cnt, total)
         
         OUT_QUEUE.task_done()
@@ -83,7 +86,7 @@ class PEAnalyzer:
                 # func(self.session, path, entry.file)
                 IN_QUEUE.put((func, path, entry.file))
 
-            # break
+            
             cnt += 1
             # if cnt > 10:
             #     break
