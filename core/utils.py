@@ -55,6 +55,9 @@ def strip_nulls(str_):
 def b64enc(str_):
     return base64.b64encode(str_)
 
+def pack(data):
+    return zlib.compress(simplejson.dumps(data))
+
 def unpack(data):
     return simplejson.loads(zlib.decompress(data))
         

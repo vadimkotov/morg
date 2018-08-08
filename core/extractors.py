@@ -16,6 +16,32 @@ import simplejson
 import ssdeep
 
 
+from PyPackerDetect import PackerReport
+from PyPackerDetect import PEIDDetector
+from PyPackerDetect import BadEntryPointSectionDetector
+from PyPackerDetect import LowImportCountDetector
+from PyPackerDetect import PackerSectionNameDetector
+from PyPackerDetect import NonStandardSectionNameDetector
+
+
+PACKER_DETECT_CONFIG = {
+    "LowImportThreshold": 10,
+    "NonStandardSectionThreshold": 3,
+    "BadSectionNameThreshold": 2,
+    "OnlyPEIDEntryPointSignatures": True,
+    # large database has more than 3x as many signatures, but many are for non-packers
+    # and will create false positives. we can move signatures from the long list to the short
+    # list as needed, though.
+    "UseLargePEIDDatabase": False,
+
+    "CheckForPEIDSignatures": True,
+    "CheckForBadEntryPointSections": True,
+    "CheckForLowImportCount": True,
+    "CheckForPackerSections": True,
+    "CheckForNonStandardSections": True
+}
+
+
 EXT_UNUPXED = ".unupxed"
 
 LOGFD = open("logs/extractors.log", "wb")
@@ -173,8 +199,6 @@ def e_ida_cfg(path, file_):
 
 
 def e_pe_features_1(path, file_):
-
-
     pe = pefile.PE(path)
     sections = []
     for section in pe.sections:
@@ -276,6 +300,38 @@ def e_ssdeep(path, file_):
 def e_virustotal(path, file_):
     pass
 
+PACKER_DETECTORS = [
+    PEIDDetector.PEIDDetector(PACKER_DETECT_CONFIG),
+    BadEntryPointSectionDetector.BadEntryPointSectionDetector(PACKER_DETECT_CONFIG),
+    LowImportCountDetector.LowImportCountDetector(PACKER_DETECT_CONFIG),
+    PackerSectionNameDetector.PackerSectionNameDetector(PACKER_DETECT_CONFIG),
+    NonStandardSectionNameDetector.NonStandardSectionNameDetector(PACKER_DETECT_CONFIG)
+]
+
+def e_pypackerdetect(path, file_):
+    report = PackerReport.PackerReport(path)
+    pe = pefile.PE(path)
+    
+    for detector in PACKER_DETECTORS:
+        detector.Run(pe, report)
+        
+    data = report.GetJson()
+
+    if data["failed"]:
+        logging.error("Couldn't run PyPackerDetct on {}".format(path))
+        return
+
+    if data["detections"] == 0 and data["suspicions"] == 0:
+        return
+
+    logging.debug("{}: ".format(os.path.basename(path)))
+    for msg in data["logs"]:
+        logging.debug("    {}".format(msg))
+        
+    return database.PyPackerDetect(file=file_, data=utils.pack(data))
+
+    
+
 # DON't FORGET TO ADD AN ENTRY TO THE TABLES DICT BELOW!
 ALL = {
     "magic": e_magic,
@@ -284,7 +340,8 @@ ALL = {
     "ida_cfg": e_ida_cfg,
     "pe_features_1": e_pe_features_1,
     "ssdeep": e_ssdeep,
-    "virustotal": e_virustotal
+    "virustotal": e_virustotal,
+    "pypackerdetect": e_pypackerdetect
 }
 
 
@@ -295,6 +352,6 @@ TABLES = {
     "ida_cfg": database.IDA_CFG,
     "pe_features_1": database.PE_Features_1,
     "ssdeep": database.SSDEEP,
-    "virustotal": database.VirusTotal
-
+    "virustotal": database.VirusTotal,
+    "pypackerdetect": database.PyPackerDetect
 }

@@ -22,23 +22,30 @@ def ext_thread():
         extractor, path, file_ = IN_QUEUE.get()
         entry = extractor(path, file_)
         
-        if entry:
-            OUT_QUEUE.put(entry)
+        # if entry:
+        OUT_QUEUE.put(entry)
             
         IN_QUEUE.task_done()
         
     
 def out_thread(db_str, total):
-    bulk_size = 20
+    bulk_size = 10
+    
     session = database.connect(db_str)
     cnt = 0
+    sql_op_count = 0
+    
     while True:
         entry = OUT_QUEUE.get()
-        session.add(entry)
-        # session.commit()
+        
+        if entry:
+            session.add(entry)
+            sql_op_count += 1
+
         cnt += 1
-        if cnt > 0 and cnt % 20 == 0:
+        if sql_op_count > 0 and sql_op_count % bulk_size == 0:
             session.commit()
+            # pass
             
         utils.progress(cnt, total)
         
@@ -88,8 +95,9 @@ class PEAnalyzer:
 
             
             cnt += 1
-            # if cnt > 10:
-            #     break
+            # Uncomment for testing
+            # if cnt > 150:break
+            
         return cnt
 
             

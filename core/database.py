@@ -72,7 +72,12 @@ class VirusTotal(Base):
 
     file = relationship(File)
 
-    
+class PyPackerDetect(Base):
+    __tablename__ = "pypackerdetect"
+    id = Column(Integer, primary_key=True)
+    file_id = Column(Integer, ForeignKey("file.id"))
+    data = Column(Binary)
+    file = relationship(File)
     
 def get_engine(conn_str):
     return create_engine("{}:///{}".format(DB_PROTO, conn_str))
