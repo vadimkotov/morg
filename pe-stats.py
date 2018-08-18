@@ -16,8 +16,6 @@ logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.ERROR)
 from  sqlalchemy.sql.expression import func
 
         
-
-        
 def main():
     
     parser = argparse.ArgumentParser()
